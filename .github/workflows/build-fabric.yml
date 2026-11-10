@@ -1,0 +1,47 @@
+name: Build Wildcard Fabric 26.3
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Giải nén source nếu là file zip
+        run: |
+          if [ -f wildcard-fabric-src.zip ]; then unzip -o -q wildcard-fabric-src.zip; fi
+          ls
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Dò phiên bản Fabric cho Minecraft 26.3
+        id: v
+        run: |
+          MC=26.3
+          echo "== Các bản Minecraft Fabric hỗ trợ (mới nhất trước):"
+          curl -s https://meta.fabricmc.net/v2/versions/game | python3 -c "import json,sys;print([g['version'] for g in json.load(sys.stdin)][:15])"
+          LOADER=$(curl -s https://meta.fabricmc.net/v2/versions/loader | python3 -c "import json,sys;print(json.load(sys.stdin)[0]['version'])")
+          API=$(curl -s https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/maven-metadata.xml | python3 -c "
+          import sys,re
+          v=re.findall(r'<version>([^<]+)</version>',sys.stdin.read())
+          m=[x for x in v if x.endswith('+$MC') or ('+$MC' in x and x.split('+')[1].startswith('$MC'))]
+          print(m[-1] if m else '')")
+          LOOM=$(curl -s https://maven.fabricmc.net/net/fabricmc/fabric-loom/net.fabricmc.fabric-loom.gradle.plugin/maven-metadata.xml | python3 -c "
+          import sys,re
+          v=re.findall(r'<version>([^<]+)</version>',sys.stdin.read())
+          r=[x for x in v if 'SNAPSHOT' not in x]
+          print((r or v)[-1] if v else '')")
+          echo "loader=$LOADER api=$API loom=$LOOM"
+          echo "loader=$LOADER" >> $GITHUB_OUTPUT
+          echo "api=$API" >> $GITHUB_OUTPUT
+          echo "loom=$LOOM" >> $GITHUB_OUTPUT
+      - name: Build
+        working-directory: wildcard-fabric
+        run: gradle build --no-daemon --stacktrace -Ploader_version=${{ steps.v.outputs.loader }} -Pfabric_api_version=${{ steps.v.outputs.api }} -Ploom_version=${{ steps.v.outputs.loom }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wildcard-fabric-jar
+          path: wildcard-fabric/build/libs/*.jar
