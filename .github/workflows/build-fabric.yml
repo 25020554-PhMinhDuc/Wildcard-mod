@@ -40,8 +40,30 @@ jobs:
       - name: Build
         working-directory: wildcard-fabric
         run: gradle build --no-daemon --stacktrace -Ploader_version=${{ steps.v.outputs.loader }} -Pfabric_api_version=${{ steps.v.outputs.api }} -Ploom_version=${{ steps.v.outputs.loom }}
+      - name: Xuất thông tin Minecraft 26.3 (probe)
+        if: always()
+        working-directory: wildcard-fabric
+        run: |
+          gradle probe --no-daemon -Ploader_version=${{ steps.v.outputs.loader }} -Pfabric_api_version=${{ steps.v.outputs.api }} -Ploom_version=${{ steps.v.outputs.loom }}
+          CP=$(paste -sd: build/probe/classpath.txt)
+          : > build/probe/javap.txt
+          while read c; do [ -z "$c" ] && continue; echo "######## $c" >> build/probe/javap.txt; javap -p -cp "$CP" "$c" >> build/probe/javap.txt 2>&1 || true; done < probe-classes.txt
+          for j in $(grep -i fabric build/probe/classpath.txt); do unzip -l "$j" | grep -oE "net/fabricmc/fabric/api/[A-Za-z0-9/_$]+\.class" ; done | sed 's/\.class$//' | sort -u > build/probe/fabric-api-classes.txt
+          for j in $(grep -i minecraft build/probe/classpath.txt); do unzip -l "$j" | grep -oE "net/minecraft/[A-Za-z0-9/_$]+\.class"; done | grep -v '\$' | sed 's/\.class$//' | sort -u > build/probe/mc-classes.txt
+          wc -l build/probe/*.txt; ls -la build/probe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: wildcard-fabric-jar
           path: wildcard-fabric/build/libs/*.jar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-text
+          path: |
+            wildcard-fabric/build/probe/*.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-deps
+          path: wildcard-fabric/build/probe/deps.zip
