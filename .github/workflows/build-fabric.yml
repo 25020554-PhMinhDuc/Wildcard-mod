@@ -15,7 +15,7 @@ jobs:
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.2.1'
+          gradle-version: 'current'
       - name: Dò phiên bản Fabric cho Minecraft 26.3
         id: v
         run: |
